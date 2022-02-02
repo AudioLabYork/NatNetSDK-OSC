@@ -29,6 +29,12 @@ limitations under the License. */
 #include <GL/gl.h>
 #include <GL/glu.h>
 
+#pragma comment(lib,"winmm.lib")
+
+// OSC
+#include "osc/OscOutboundPacketStream.h"
+#include "ip/UdpSocket.h"
+
 //NatNet SDK
 #include "NatNetTypes.h"
 #include "NatNetCAPI.h"
@@ -48,6 +54,11 @@ limitations under the License. */
 #define ID_RENDERTIMER 101
 
 #define MATH_PI 3.14159265F
+
+// OSC
+#define ADDRESS "127.0.0.1"
+#define PORT 7000
+#define OUTPUT_BUFFER_SIZE 1024
 
 // globals
 // Class for printing bitmap fonts in OpenGL
@@ -489,10 +500,16 @@ void RenderOGLScene()
         // RigidBody orientation
         GLfloat qx, qy, qz, qw;
         std::tie(qx, qy, qz, qw) = rigidBodies.GetQuaternion(i);
-        q.x = qx;
-        q.y = qy;
-        q.z = qz;
-        q.w = qw;
+        //q.x = qx;
+        //q.y = qy;
+        //q.z = qz;
+        //q.w = qw;
+
+		// quaternion swapping to match the AudiLab's rig default orientation
+		q.x = qz;
+		q.y = qx;
+		q.z = qy;
+		q.w = qw;
 
         // If Motive is streaming Z-up, convert to this renderer's Y-up coordinate system
         if (upAxis==2)
@@ -511,6 +528,34 @@ void RenderOGLScene()
         ea.x = NATUtils::RadiansToDegrees(ea.x);
         ea.y = NATUtils::RadiansToDegrees(ea.y);
         ea.z = NATUtils::RadiansToDegrees(ea.z);
+
+		// OSC
+		UdpTransmitSocket transmitSocket(IpEndpointName(ADDRESS, PORT));
+
+		char buffer[OUTPUT_BUFFER_SIZE];
+		osc::OutboundPacketStream p(buffer, OUTPUT_BUFFER_SIZE);
+
+		// flip roll
+		//ea.y = ea.y * -1;
+
+		//x - pitch
+		//z - yaw
+		//y - roll
+		//p << osc::BeginMessage("/orientation") << (float)ea.x << (float)ea.z << (float)ea.y << (float)q.x << (float)q.y << (float)q.z << (float)q.w << osc::EndMessage;
+		p << osc::BeginBundleImmediate
+			//<< osc::BeginMessage("/orientation") << (float)ea.z << (float)ea.x << (float)ea.y << osc::EndMessage
+			//<< osc::BeginMessage("/rendering/quaternions") << (float)q.w << (float)q.x << (float)q.y << (float)q.z << osc::EndMessage // SALTE HT
+			//<< osc::BeginMessage("/rendering/htrpy") << (float)ypr[2] << (float)ypr[1] << (float)ypr[0] << osc::EndMessage // SALTE HT
+			//<< osc::BeginMessage("/yaw") << (float)(ea.z / 360 + 0.5) << osc::EndMessage
+			//<< osc::BeginMessage("/pitch") << (float)(ea.x / 360 + 0.5) << osc::EndMessage
+			//<< osc::BeginMessage("/roll") << (float)(ea.y / 360 + 0.5) << osc::EndMessage
+			<< osc::BeginMessage("/qW") << (float)((q.w + 1) / 2) << osc::EndMessage
+			<< osc::BeginMessage("/qX") << (float)((q.x + 1) / 2) << osc::EndMessage
+			<< osc::BeginMessage("/qY") << (float)((q.y + 1) / 2) << osc::EndMessage
+			<< osc::BeginMessage("/qZ") << (float)((q.z + 1) / 2) << osc::EndMessage
+			<< osc::EndBundle;
+
+		transmitSocket.Send(p.Data(), p.Size());
 
         // Draw RigidBody as cube
         glPushAttrib(GL_ALL_ATTRIB_BITS);

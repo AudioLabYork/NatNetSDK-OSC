@@ -158,6 +158,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\include\ip\IpEndpointName.cpp" />
+    <ClCompile Include="..\..\include\ip\win32\NetworkingUtils.cpp" />
+    <ClCompile Include="..\..\include\ip\win32\UdpSocket.cpp" />
+    <ClCompile Include="..\..\include\osc\OscOutboundPacketStream.cpp" />
+    <ClCompile Include="..\..\include\osc\OscPrintReceivedElements.cpp" />
+    <ClCompile Include="..\..\include\osc\OscReceivedElements.cpp" />
+    <ClCompile Include="..\..\include\osc\OscTypes.cpp" />
     <ClCompile Include="GLPrint.cpp" />
     <ClCompile Include="MarkerPositionCollection.cpp" />
     <ClCompile Include="NATUtils.cpp" />
@@ -166,6 +173,19 @@
     <ClCompile Include="SampleClient3D.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\ip\IpEndpointName.h" />
+    <ClInclude Include="..\..\include\ip\NetworkingUtils.h" />
+    <ClInclude Include="..\..\include\ip\PacketListener.h" />
+    <ClInclude Include="..\..\include\ip\TimerListener.h" />
+    <ClInclude Include="..\..\include\ip\UdpSocket.h" />
+    <ClInclude Include="..\..\include\osc\MessageMappingOscPacketListener.h" />
+    <ClInclude Include="..\..\include\osc\OscException.h" />
+    <ClInclude Include="..\..\include\osc\OscHostEndianness.h" />
+    <ClInclude Include="..\..\include\osc\OscOutboundPacketStream.h" />
+    <ClInclude Include="..\..\include\osc\OscPacketListener.h" />
+    <ClInclude Include="..\..\include\osc\OscPrintReceivedElements.h" />
+    <ClInclude Include="..\..\include\osc\OscReceivedElements.h" />
+    <ClInclude Include="..\..\include\osc\OscTypes.h" />
     <ClInclude Include="GLPrint.h" />
     <ClInclude Include="MarkerPositionCollection.h" />
     <ClInclude Include="NATUtils.h" />
