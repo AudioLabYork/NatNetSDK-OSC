@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
+#define _USE_MATH_DEFINES
 
 // NatNetSample.cpp : Defines the entry point for the application.
 //
@@ -117,6 +118,87 @@ void NATNET_CALLCONV DataHandler(sFrameOfMocapData* data, void* pUserData);    /
 void NATNET_CALLCONV MessageHandler(Verbosity msgType, const char* msg);      // receives NatNet error messages
 bool InitNatNet(LPSTR szIPAddress, LPSTR szServerIPAddress, ConnectionType connType);
 bool ParseRigidBodyDescription(sDataDescriptions* pDataDefs);
+
+
+// OSC output functions
+void sendOSC2SceneRotator(Quat q)
+{
+    UdpTransmitSocket transmitSocket(IpEndpointName("127.0.0.1", 7000));
+
+    char buffer[OUTPUT_BUFFER_SIZE];
+    osc::OutboundPacketStream p(buffer, OUTPUT_BUFFER_SIZE);
+
+    p << osc::BeginBundleImmediate
+        << osc::BeginMessage("/qW") << (float)((q.w + 1) / 2) << osc::EndMessage
+        << osc::BeginMessage("/qX") << (float)((q.x + 1) / 2) << osc::EndMessage
+        << osc::BeginMessage("/qY") << (float)((q.y + 1) / 2) << osc::EndMessage
+        << osc::BeginMessage("/qZ") << (float)((q.z + 1) / 2) << osc::EndMessage
+        << osc::EndBundle;
+
+    transmitSocket.Send(p.Data(), p.Size());
+}
+
+void sendOSC2AtmosRenderer(Quat q, EulerAngles ea)
+{
+    float qW = q.w;
+    float qX = q.x;
+    float qY = q.y;
+    float qZ = -q.z;
+
+    float m_yaw, m_pitch, m_roll;
+
+    // thanks to Charles Verron (https://www.noisemakers.fr/) for providing the code snippet used below
+
+    double test = qX * qZ + qY * qW;
+    if (test > 0.499999)
+    {
+        // singularity at north pole
+        m_yaw = 2 * atan2(qX, qW);
+        m_pitch = M_PI / 2;
+        m_roll = 0;
+        return;
+    }
+    if (test < -0.499999)
+    {
+        // singularity at south pole
+        m_yaw = -2 * atan2(qX, qW);
+        m_pitch = - M_PI / 2;
+        m_roll = 0;
+        return;
+    }
+    double sqx = qX * qX;
+    double sqy = qZ * qZ;
+    double sqz = qY * qY;
+
+    m_yaw = atan2(2 * qZ * qW - 2 * qX * qY, 1 - 2 * sqy - 2 * sqz);
+    m_pitch = asin(2 * test);
+    m_roll = atan2(2 * qX * qW - 2 * qZ * qY, 1 - 2 * sqx - 2 * sqz);
+
+    //m_yaw *= -1.0f;
+
+    // Convert to degrees
+    m_yaw = m_yaw * (180/ M_PI);
+    m_pitch = m_pitch * (180/ M_PI);
+    m_roll = m_roll * (180/ M_PI);
+
+    UdpTransmitSocket transmitSocket(IpEndpointName("127.0.0.1", 8000));
+
+    char buffer[OUTPUT_BUFFER_SIZE];
+    osc::OutboundPacketStream p(buffer, OUTPUT_BUFFER_SIZE);
+
+    //z - yaw
+    //y - pitch
+    //x - roll
+
+    // flip signs
+    //.z = ea.z * -1;
+    //ea.y = ea.y * -1;
+
+
+    p << osc::BeginMessage("/ypr") << (float)m_yaw << (float)m_pitch << (float)m_roll << osc::EndMessage;
+
+    transmitSocket.Send(p.Data(), p.Size());
+}
 
 //****************************************************************************
 //
@@ -529,33 +611,41 @@ void RenderOGLScene()
         ea.y = NATUtils::RadiansToDegrees(ea.y);
         ea.z = NATUtils::RadiansToDegrees(ea.z);
 
-		// OSC
-		UdpTransmitSocket transmitSocket(IpEndpointName(ADDRESS, PORT));
+		//// OSC
+		//UdpTransmitSocket transmitSocket(IpEndpointName(ADDRESS, PORT));
 
-		char buffer[OUTPUT_BUFFER_SIZE];
-		osc::OutboundPacketStream p(buffer, OUTPUT_BUFFER_SIZE);
+		//char buffer[OUTPUT_BUFFER_SIZE];
+		//osc::OutboundPacketStream p(buffer, OUTPUT_BUFFER_SIZE);
 
-		// flip roll
-		//ea.y = ea.y * -1;
+		//// flip roll
+		////ea.y = ea.y * -1;
 
-		//x - pitch
-		//z - yaw
-		//y - roll
-		//p << osc::BeginMessage("/orientation") << (float)ea.x << (float)ea.z << (float)ea.y << (float)q.x << (float)q.y << (float)q.z << (float)q.w << osc::EndMessage;
-		p << osc::BeginBundleImmediate
-			//<< osc::BeginMessage("/orientation") << (float)ea.z << (float)ea.x << (float)ea.y << osc::EndMessage
-			//<< osc::BeginMessage("/rendering/quaternions") << (float)q.w << (float)q.x << (float)q.y << (float)q.z << osc::EndMessage // SALTE HT
-			//<< osc::BeginMessage("/rendering/htrpy") << (float)ypr[2] << (float)ypr[1] << (float)ypr[0] << osc::EndMessage // SALTE HT
-			//<< osc::BeginMessage("/yaw") << (float)(ea.z / 360 + 0.5) << osc::EndMessage
-			//<< osc::BeginMessage("/pitch") << (float)(ea.x / 360 + 0.5) << osc::EndMessage
-			//<< osc::BeginMessage("/roll") << (float)(ea.y / 360 + 0.5) << osc::EndMessage
-			<< osc::BeginMessage("/qW") << (float)((q.w + 1) / 2) << osc::EndMessage
-			<< osc::BeginMessage("/qX") << (float)((q.x + 1) / 2) << osc::EndMessage
-			<< osc::BeginMessage("/qY") << (float)((q.y + 1) / 2) << osc::EndMessage
-			<< osc::BeginMessage("/qZ") << (float)((q.z + 1) / 2) << osc::EndMessage
-			<< osc::EndBundle;
+		////x - pitch
+		////z - yaw
+		////y - roll
+		////p << osc::BeginMessage("/orientation") << (float)ea.x << (float)ea.z << (float)ea.y << (float)q.x << (float)q.y << (float)q.z << (float)q.w << osc::EndMessage;
+		//p << osc::BeginBundleImmediate
+		//	//<< osc::BeginMessage("/orientation") << (float)ea.z << (float)ea.x << (float)ea.y << osc::EndMessage
+		//	//<< osc::BeginMessage("/rendering/quaternions") << (float)q.w << (float)q.x << (float)q.y << (float)q.z << osc::EndMessage // SALTE HT
+		//	//<< osc::BeginMessage("/rendering/htrpy") << (float)ypr[2] << (float)ypr[1] << (float)ypr[0] << osc::EndMessage // SALTE HT
+		//	//<< osc::BeginMessage("/yaw") << (float)(ea.z / 360 + 0.5) << osc::EndMessage
+		//	//<< osc::BeginMessage("/pitch") << (float)(ea.x / 360 + 0.5) << osc::EndMessage
+		//	//<< osc::BeginMessage("/roll") << (float)(ea.y / 360 + 0.5) << osc::EndMessage
+		//	<< osc::BeginMessage("/qW") << (float)((q.w + 1) / 2) << osc::EndMessage
+		//	<< osc::BeginMessage("/qX") << (float)((q.x + 1) / 2) << osc::EndMessage
+		//	<< osc::BeginMessage("/qY") << (float)((q.y + 1) / 2) << osc::EndMessage
+		//	<< osc::BeginMessage("/qZ") << (float)((q.z + 1) / 2) << osc::EndMessage
+		//	<< osc::EndBundle;
 
-		transmitSocket.Send(p.Data(), p.Size());
+		//transmitSocket.Send(p.Data(), p.Size());
+
+
+        // OSC out for SceneRotator
+        sendOSC2SceneRotator(q);
+
+        // OSC out for ATMOS renderer
+        sendOSC2AtmosRenderer(q, ea);
+        
 
         // Draw RigidBody as cube
         glPushAttrib(GL_ALL_ATTRIB_BITS);
